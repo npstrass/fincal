@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Plus, X, DollarSign, RefreshCw, Edit } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, X, DollarSign, RefreshCw, Edit, List } from 'lucide-react';
 import './App.css'
 
 export default function FinancialCalendar() {
@@ -22,6 +22,8 @@ export default function FinancialCalendar() {
         return savedTransactions ? JSON.parse(savedTransactions) : [];
     });
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showTransactionListModal, setShowTransactionListModal] = useState(false);
+    const [showPastExpenses, setShowPastExpenses] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
     const [newTransaction, setNewTransaction] = useState({
@@ -490,6 +492,17 @@ export default function FinancialCalendar() {
                 </div>
             </div>
 
+            {/* Transactions List Button */}
+            <div className="fixed bottom-4 left-4">
+                <button
+                    onClick={() => setShowTransactionListModal(true)}
+                    className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+                    title="View All Transactions"
+                >
+                    <List size={20} />
+                </button>
+            </div>
+
             {/* Add/Edit Transaction Modal */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
@@ -616,6 +629,144 @@ export default function FinancialCalendar() {
                                 >
                                     Delete Transaction
                                 </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Transaction List Modal */}
+            {showTransactionListModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
+                    <div className="bg-white p-6 rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold">All Transactions</h3>
+                            <button
+                                onClick={() => setShowTransactionListModal(false)}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center">
+                                <div className="text-sm text-gray-500 mr-4">
+                                    {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+                                </div>
+                                <label className="flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={showPastExpenses}
+                                        onChange={() => setShowPastExpenses(!showPastExpenses)}
+                                        className="mr-2"
+                                    />
+                                    <span className="text-sm">Show past expenses</span>
+                                </label>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setEditingTransaction(null);
+                                    setNewTransaction({
+                                        date: formatDateToYYYYMMDD(new Date()),
+                                        description: '',
+                                        amount: '',
+                                        isExpense: true,
+                                        recurring: 'none',
+                                        id: Date.now()
+                                    });
+                                    setShowTransactionListModal(false);
+                                    setShowAddModal(true);
+                                }}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center"
+                            >
+                                <Plus className="mr-1" size={16} />
+                                Add Transaction
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto flex-grow">
+                            {transactions.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                    No transactions yet. Click the button above to add one.
+                                </div>
+                            ) : (
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="text-left p-2">Date</th>
+                                            <th className="text-left p-2">Description</th>
+                                            <th className="text-left p-2">Amount</th>
+                                            <th className="text-left p-2">Recurring</th>
+                                            <th className="text-right p-2">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {[...transactions]
+                                            .filter(transaction => {
+                                                if (!showPastExpenses && transaction.amount < 0) {
+                                                    // Only show future expenses when showPastExpenses is false
+                                                    const transactionDate = new Date(transaction.date + 'T00:00:00');
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0); // Reset time to start of day
+                                                    return transactionDate >= today;
+                                                }
+                                                return true;
+                                            })
+                                            .sort((a, b) => new Date(a.date) - new Date(b.date)) // Sort earliest to latest
+                                            .map(transaction => {
+                                                const isExpense = transaction.amount < 0;
+                                                const transactionDate = new Date(transaction.date + 'T00:00:00');
+                                                const formattedDate = transactionDate.toLocaleDateString();
+                                                const isPastExpense = isExpense && transactionDate < new Date(new Date().setHours(0, 0, 0, 0));
+                                                const recurringLabels = {
+                                                    'none': 'One-time',
+                                                    'weekly': 'Weekly',
+                                                    'biweekly': 'Biweekly',
+                                                    'monthly': 'Monthly',
+                                                    'quarterly': 'Quarterly',
+                                                    'annually': 'Annually'
+                                                };
+
+                                                return (
+                                                    <tr key={transaction.id} className={`border-b hover:bg-gray-50 ${isPastExpense ? 'opacity-60' : ''}`}>
+                                                        <td className="p-2">{formattedDate}</td>
+                                                        <td className="p-2">{transaction.description}</td>
+                                                        <td className={`p-2 ${isExpense ? 'text-red-600' : 'text-green-600'}`}>
+                                                            ${Math.abs(transaction.amount).toFixed(2)}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            {recurringLabels[transaction.recurring]}
+                                                            {transaction.recurring !== 'none' && (
+                                                                <span className="ml-1 text-gray-500">
+                                                                    <RefreshCw size={14} className="inline" />
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            <button
+                                                                onClick={() => {
+                                                                    openEditTransaction(transaction);
+                                                                    setShowTransactionListModal(false);
+                                                                }}
+                                                                className="text-blue-600 hover:text-blue-800 mr-2"
+                                                                title="Edit"
+                                                            >
+                                                                <Edit size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => removeTransaction(transaction.id)}
+                                                                className="text-red-600 hover:text-red-800"
+                                                                title="Delete"
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                    </tbody>
+                                </table>
                             )}
                         </div>
                     </div>
